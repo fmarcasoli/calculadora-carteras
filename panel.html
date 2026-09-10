@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="es-AR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Panel de carteras · en vivo</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#E6E9E3;--surface:#F5F7F2;--surface2:#FBFCF9;
+  --ink:#121714;--ink2:#5C6660;--ink3:#8A938C;
+  --rule:#C5CBC0;--rule2:#D8DDD3;
+  --weight:#1E5560;--risk:#A8412C;--pos:#2F6B4F;--neg:#A8412C;--signal:#B08820;
+  --mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+  --sans:"IBM Plex Sans",system-ui,sans-serif;
+  --cond:"IBM Plex Sans Condensed","IBM Plex Sans",system-ui,sans-serif;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{background:var(--paper);color:var(--ink);font-family:var(--sans);font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased}
+h1{font-family:var(--cond);font-weight:700;letter-spacing:-.015em;margin:0;font-size:21px}
+.mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.eyebrow{font-family:var(--cond);font-weight:600;font-size:10.5px;letter-spacing:.13em;text-transform:uppercase;color:var(--ink3)}
+a{color:var(--weight)}
+header{border-bottom:1px solid var(--rule);background:var(--surface2);position:sticky;top:0;z-index:10}
+.hwrap{max-width:1280px;margin:0 auto;padding:14px 22px;display:flex;gap:20px;align-items:center;flex-wrap:wrap}
+.brand p{margin:2px 0 0;font-size:11.5px;color:var(--ink3);font-family:var(--mono)}
+.hright{margin-left:auto;display:flex;gap:16px;align-items:center;flex-wrap:wrap}
+.dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--ink3);vertical-align:0}
+.dot.open{background:var(--pos)} .dot.closed{background:var(--ink3)}
+.status{font-family:var(--mono);font-size:11px;color:var(--ink3)}
+.btn{padding:7px 11px;border:1px solid var(--rule);background:var(--surface2);border-radius:2px;cursor:pointer;font-family:var(--cond);font-weight:600;font-size:11.5px;letter-spacing:.05em;text-transform:uppercase}
+.btn:hover{background:var(--paper);border-color:var(--ink3)}
+main{max-width:1280px;margin:0 auto;padding:22px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:14px}
+.card{background:var(--surface);border:1px solid var(--rule);border-radius:3px;padding:14px 15px;transition:opacity .15s}
+.card .top{display:flex;align-items:baseline;gap:10px}
+.card .nm{font-family:var(--cond);font-weight:700;font-size:16px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.card .big{font-family:var(--mono);font-weight:600;font-size:26px;letter-spacing:-.02em;line-height:1}
+.card .sub{font-family:var(--mono);font-size:10.5px;color:var(--ink3);margin-top:3px}
+.rows{margin-top:12px;border-top:1px solid var(--rule2)}
+.r{display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--rule2);font-family:var(--mono);font-size:11.5px}
+.r .t{font-weight:600;min-width:64px}
+.r .w{color:var(--ink3);min-width:52px;text-align:right}
+.r .p{flex:1;text-align:right}
+.r.na{opacity:.5}
+.pos{color:var(--pos)} .neg{color:var(--neg)}
+.spark{height:3px;border-radius:2px;background:var(--rule2);margin-top:2px;overflow:hidden}
+.spark i{display:block;height:100%}
+.empty{padding:44px 20px;text-align:center;color:var(--ink3)}
+.note{max-width:1280px;margin:0 auto;padding:0 22px 30px;color:var(--ink3);font-size:11.5px;line-height:1.6}
+.note b{color:var(--ink2)}
+.flash{animation:fl .6s ease}@keyframes fl{0%{background:rgba(176,136,32,.16)}100%{background:transparent}}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<header>
+  <div class="hwrap">
+    <div class="brand">
+      <h1>Panel de carteras · en vivo</h1>
+      <p>movimiento del día · CEDEARs/acciones BYMA (ARS) vía data912</p>
+    </div>
+    <div class="hright">
+      <span class="status"><span class="dot" id="mktDot"></span> <span id="mktTxt">—</span></span>
+      <span class="status" id="upd">—</span>
+      <button class="btn" id="bRefresh">Actualizar</button>
+      <a class="btn" href="/" style="text-decoration:none">← Constructor</a>
+    </div>
+  </div>
+</header>
+<main>
+  <div class="grid" id="grid"></div>
+  <div class="empty" id="empty" hidden>
+    Todavía no guardaste ninguna cartera.<br>
+    Abrí el <a href="/">Constructor</a>, armá una y guardala desde el menú ☰. Aparecerá acá.
+  </div>
+</main>
+<p class="note">
+  El % es la <b>variación del día del CEDEAR/acción en pesos</b> (lo que muestra el broker en BYMA), no del subyacente
+  en dólares — mezcla el movimiento del activo con el del dólar. Ponderado por los pesos de la cartera, normalizado
+  sobre los activos que tienen cotización (los manuales y los sin CEDEAR quedan fuera; se avisa la cobertura).
+  Refresca cada 20 s con el mercado abierto. Fuente: data912. No es asesoramiento de inversión.
+</p>
+<script>
+"use strict";
+const CART_KEY="carteras_v1";
+const ALIAS={"BRK-B":"BRKB","BRK.B":"BRKB","DIS":"DISN","GOOGL":"GOGL","GOOG":"GOGL"};
+const REFRESH_MS=20000;
+let quotes={}, timer=null;
+
+const fmt=(x,d=2)=>(x==null||!isFinite(x))?"—":x.toLocaleString("es-AR",{minimumFractionDigits:d,maximumFractionDigits:d});
+const pctS=(x,d=2)=>(x==null||!isFinite(x))?"—":(x>0?"+":"")+fmt(x,d)+"%";
+const cls=x=>x>0?"pos":(x<0?"neg":"");
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+
+function loadCarteras(){try{return JSON.parse(localStorage.getItem(CART_KEY))||{}}catch(e){return {}}}
+function symOf(t){ if(quotes[t]!=null) return t; const a=ALIAS[t]; if(a&&quotes[a]!=null) return a; return null; }
+
+async function fetchQuotes(){
+  const urls=["https://data912.com/live/arg_cedears","https://data912.com/live/arg_stocks"];
+  const map={};
+  await Promise.all(urls.map(async u=>{
+    try{const r=await fetch(u,{cache:"no-store"}); if(!r.ok)return; const arr=await r.json();
+      for(const x of arr){ if(x&&x.symbol&&x.pct_change!=null && map[x.symbol]==null) map[x.symbol]={pct:+x.pct_change,last:+x.c}; }
+    }catch(e){}
+  }));
+  if(Object.keys(map).length) quotes=map;
+  return Object.keys(map).length;
+}
+
+function marketOpen(){
+  // BYMA rueda continua aprox 11:00–17:00 ART (UTC-3), lun-vie
+  const now=new Date();
+  const art=new Date(now.toLocaleString("en-US",{timeZone:"America/Argentina/Buenos_Aires"}));
+  const d=art.getDay(), h=art.getHours()+art.getMinutes()/60;
+  return d>=1&&d<=5&&h>=11&&h<17;
+}
+
+function computeCartera(c){
+  const holds=(c.holds||[]).filter(h=>h.on!==false);
+  const rows=holds.map(h=>{
+    if(h.custom) return {t:h.name||"manual",w:+h.w||0,pct:null,custom:true};
+    const s=symOf(h.t);
+    return {t:h.t,w:+h.w||0,pct:s?quotes[s].pct:null,sym:s};
+  });
+  const covW=rows.filter(r=>r.pct!=null).reduce((s,r)=>s+r.w,0);
+  const allW=rows.reduce((s,r)=>s+r.w,0);
+  let day=0; if(covW>0) for(const r of rows) if(r.pct!=null) day+=(r.w/covW)*r.pct;
+  return {rows:rows.sort((a,b)=>(b.pct??-999)-(a.pct??-999)),day:covW>0?day:null,
+          cov:allW>0?covW/allW:0,n:rows.length};
+}
+
+function render(){
+  const carts=loadCarteras(), names=Object.keys(carts).sort((a,b)=>a.localeCompare(b,"es"));
+  document.getElementById("empty").hidden=!!names.length;
+  const grid=document.getElementById("grid");
+  if(!names.length){grid.innerHTML="";return;}
+  grid.innerHTML=names.map(n=>{
+    const r=computeCartera(carts[n]);
+    const covTxt=r.cov<0.999?` · ${fmt(r.cov*100,0)}% con cotización`:"";
+    const body=r.rows.map(x=>{
+      if(x.pct==null) return `<div class="r na"><span class="t">${esc(x.t.slice(0,10))}</span><span class="w">${fmt(x.w,1)}%</span><span class="p">${x.custom?"manual":"s/cotiz."}</span></div>`;
+      return `<div class="r"><span class="t">${esc(x.t)}</span><span class="w">${fmt(x.w,1)}%</span>
+        <span class="p ${cls(x.pct)}">${pctS(x.pct)}</span></div>`;
+    }).join("");
+    return `<div class="card" data-n="${esc(n)}">
+      <div class="top"><span class="nm">${esc(n)}</span>
+        <span class="big ${cls(r.day)}">${r.day==null?"—":pctS(r.day)}</span></div>
+      <div class="sub">${r.n} activos${covTxt}</div>
+      <div class="spark"><i style="width:${r.day==null?0:Math.min(100,Math.abs(r.day)/4*100)}%;background:${r.day>0?'var(--pos)':r.day<0?'var(--neg)':'var(--ink3)'}"></i></div>
+      <div class="rows">${body}</div>
+    </div>`;
+  }).join("");
+}
+
+async function tick(){
+  const ok=await fetchQuotes();
+  render();
+  const t=new Date();
+  document.getElementById("upd").textContent = ok? "actualizado "+t.toLocaleTimeString("es-AR") : "sin conexión con data912";
+  const open=marketOpen();
+  document.getElementById("mktDot").className="dot "+(open?"open":"closed");
+  document.getElementById("mktTxt").textContent=open?"mercado abierto":"mercado cerrado";
+}
+function schedule(){ clearInterval(timer); timer=setInterval(()=>{ if(!document.hidden) tick(); }, REFRESH_MS); }
+
+document.getElementById("bRefresh").onclick=tick;
+document.addEventListener("visibilitychange",()=>{ if(!document.hidden) tick(); });
+tick(); schedule();
+</script>
+</body>
+</html>
