@@ -135,8 +135,8 @@ svg{display:block;width:100%;height:auto;overflow:visible}
 .axl{font-family:var(--mono);font-size:9.5px;fill:var(--ink3)}
 
 /* ---------- heatmap ---------- */
-.hmwrap{overflow-x:auto}
-.hm{border-collapse:collapse;font-family:var(--mono);font-size:10px}
+.hmwrap{overflow-x:auto;display:flex;justify-content:center}
+.hm{border-collapse:collapse;font-family:var(--mono);font-size:10px;width:auto;margin:0 auto}
 .hm th{padding:3px 4px;font-family:var(--mono);font-size:9.5px;letter-spacing:0;text-transform:none;border:0;color:var(--ink2)}
 .hm th.rowh{text-align:right;font-weight:600;color:var(--ink)}
 .hm td{padding:0;border:1px solid var(--surface);text-align:center;width:32px;height:24px;font-size:9.5px}
@@ -421,7 +421,13 @@ input[type=text],input[type=number]{cursor:text}
 
     <section class="card">
       <div class="hd"><h2>Matriz de correlación</h2><span class="note">ventana seleccionada</span></div>
-      <div class="bd"><div class="hmwrap"><table class="hm" id="hm"></table></div></div>
+      <div class="bd"><div class="hmwrap"><table class="hm" id="hm"></table></div>
+        <div style="display:flex;align-items:center;justify-content:center;gap:8px;margin-top:12px;font-family:var(--mono);font-size:10.5px;color:var(--ink3)">
+          <span>menos correlación</span>
+          <span style="display:inline-block;width:120px;height:9px;border-radius:2px;background:linear-gradient(to right,rgba(30,85,96,.84),var(--surface2),rgba(168,65,44,.84))"></span>
+          <span>más correlación</span>
+        </div>
+      </div>
     </section>
 
   </div>
@@ -713,16 +719,25 @@ function render(){
       <td>${fmt(d.sh)}</td><td class="${cls(d.d)}">${d.d>0?"+":""}${fmt(d.d)}</td></tr>`).join("")+"</tbody>"
     : `<tbody><tr><td style="color:var(--ink3);border:0">Necesitás al menos dos activos.</td></tr></tbody>`;
 
-  /* --- heatmap --- */
+  /* --- heatmap: escala azul (menos correlación) → rojo (más), sobre el rango real --- */
   const lab=HH.map(h=>h.custom?h.name.slice(0,6):h.t);
+  const corrM=[]; let cmin=1,cmax=-1;
+  for(let a=0;a<HH.length;a++){corrM.push([]);for(let b=0;b<HH.length;b++){
+    const c=C[a][b]/Math.max(Math.sqrt(C[a][a]*C[b][b]),1e-12);
+    corrM[a].push(c);
+    if(a!==b){ if(c<cmin)cmin=c; if(c>cmax)cmax=c; }
+  }}
+  const cmid=(cmin+cmax)/2, half=Math.max((cmax-cmin)/2,1e-6);
   let hm=`<thead><tr><th></th>${lab.map(l=>`<th>${esc(l)}</th>`).join("")}</tr></thead><tbody>`;
   for(let a=0;a<HH.length;a++){
     hm+=`<tr><th class="rowh">${esc(lab[a])}</th>`;
     for(let b=0;b<HH.length;b++){
-      const c=C[a][b]/Math.max(Math.sqrt(C[a][a]*C[b][b]),1e-12);
-      const t=Math.max(-1,Math.min(1,c));
-      const col = t>=0 ? `rgba(168,65,44,${(0.09+0.72*t).toFixed(3)})` : `rgba(30,85,96,${(0.09+0.72*-t).toFixed(3)})`;
-      hm+=`<td style="background:${col};color:${Math.abs(t)>0.62?"#F5F7F2":"var(--ink)"}">${a===b?"—":fmt(c,2).replace("0,",",")}</td>`;
+      if(a===b){ hm+=`<td style="background:var(--rule2);color:var(--ink3)">—</td>`; continue; }
+      const c=corrM[a][b];
+      const f=Math.max(-1,Math.min(1,(c-cmid)/half));   // -1 = menos corr (azul) · +1 = más corr (rojo)
+      const alpha=(0.12+0.72*Math.abs(f)).toFixed(3);
+      const col = f>=0 ? `rgba(168,65,44,${alpha})` : `rgba(30,85,96,${alpha})`;
+      hm+=`<td style="background:${col};color:${Math.abs(f)>0.62?"#F5F7F2":"var(--ink)"}">${fmt(c,2).replace("0,",",")}</td>`;
     }
     hm+="</tr>";
   }
