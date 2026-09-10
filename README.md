@@ -1,8 +1,10 @@
 # Constructor de carteras
 
 Herramienta de análisis cuantitativo de carteras (HTML sin dependencias).
-Los datos (precios de Yahoo Finance + disponibilidad de CEDEAR en BYMA) viven en
-`datos.js` (el HTML los carga con `<script src>`) y se refrescan con `actualizar.py`.
+Los datos (precios de Yahoo Finance + disponibilidad de CEDEAR en BYMA) se
+refrescan con `actualizar.py`, que escribe dos archivos con el mismo contenido:
+`datos.js` (lo que carga el HTML con `<script src>`) y `datos.json` (JSON puro,
+para consumo externo/portabilidad).
 
 ## Uso local
 

@@ -341,7 +341,7 @@ def main():
     #  Archivo separado del HTML: sirve igual online (Vercel) y localmente
     #  (doble clic), sin el CORS que rompería un fetch de datos.json en file://.
     nuevo_json = json.dumps(datos, separators=(",", ":"), ensure_ascii=False)
-    contenido = "window.__DATA__=" + nuevo_json + ";\n"
+    datos_json = os.path.splitext(args.datos)[0] + ".json"   # datos.js -> datos.json
 
     if not args.sin_backup and os.path.exists(args.datos):
         bak = args.datos + ".bak"
@@ -349,14 +349,18 @@ def main():
             f.write(open(args.datos, encoding="utf-8").read())
         print(f"Copia de seguridad: {os.path.basename(bak)}")
 
+    # datos.js: lo que carga la app con <script src> (anda local y online)
     with open(args.datos, "w", encoding="utf-8") as f:
-        f.write(contenido)
+        f.write("window.__DATA__=" + nuevo_json + ";\n")
+    # datos.json: JSON puro, mismo contenido, para consumo externo/portabilidad
+    with open(datos_json, "w", encoding="utf-8") as f:
+        f.write(nuevo_json)
 
     con_ced = sum(1 for t in datos["activos"] if datos["activos"][t]["ced"])
     print(f"\nListo. {len(datos['activos'])} activos · {len(datos['fechas'])} ruedas · "
           f"{datos['desde']} a {datos['hasta']}")
-    print(f"{con_ced} con CEDEAR en BYMA · {os.path.basename(args.datos)} "
-          f"{round(os.path.getsize(args.datos)/1024)} KB")
+    print(f"{con_ced} con CEDEAR en BYMA · {os.path.basename(args.datos)} + "
+          f"{os.path.basename(datos_json)} ({round(os.path.getsize(args.datos)/1024)} KB)")
     print(f"Abrí {os.path.basename(args.html)} en el navegador.")
 
 
