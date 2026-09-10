@@ -134,6 +134,16 @@ svg{display:block;width:100%;height:auto;overflow:visible}
 .gl{stroke:var(--rule2);stroke-width:1}
 .axl{font-family:var(--mono);font-size:9.5px;fill:var(--ink3)}
 
+/* ---------- small multiples por activo ---------- */
+.mult{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:12px}
+.mini{border:1px solid var(--rule2);border-radius:3px;padding:9px 10px;background:var(--surface2)}
+.mini .mh{display:flex;align-items:baseline;gap:8px;margin-bottom:5px}
+.mini .mt{font-family:var(--mono);font-weight:600;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mini .mv{margin-left:auto;font-family:var(--mono);font-weight:600;font-size:13px}
+.mini .ms{font-family:var(--mono);font-size:9.5px;color:var(--ink3);margin-top:3px;display:flex;justify-content:space-between}
+.mini svg{display:block;width:100%;height:auto}
+.mult .empty{grid-column:1/-1}
+
 /* ---------- heatmap ---------- */
 .hmwrap{overflow-x:auto;display:flex;justify-content:center}
 .hm{border-collapse:collapse;font-family:var(--mono);font-size:10px;width:auto;margin:0 auto}
@@ -348,6 +358,11 @@ input[type=text],input[type=number]{cursor:text}
     <section class="card">
       <div class="hd"><h2>Evolución y drawdown</h2><span class="note">base 100 · rebalanceo diario</span></div>
       <div class="bd" id="chartBox"></div>
+    </section>
+
+    <section class="card">
+      <div class="hd"><h2>Evolución por activo</h2><span class="note">base 100 · cada activo por separado</span></div>
+      <div class="bd"><div class="mult" id="assetCharts"></div></div>
     </section>
 
     <section class="card">
@@ -704,6 +719,7 @@ function render(){
 
   /* --- charts --- */
   drawCharts(p,bser,i0,n);
+  drawAssetCharts(HH,S,i0,n);
 
   /* --- drop-one --- */
   const drop=HH.length<2?[]:HH.map((h,j)=>{
@@ -824,6 +840,36 @@ function drawCharts(p,b,i0,n){
   });
   CHART.scrub.addEventListener("input",e=>showChartAt(+e.target.value,true));
   showChartAt(n,false);
+}
+
+/* ---- small multiples: un mini base-100 por cada activo de la cartera ---- */
+function drawAssetCharts(HH,S,i0,n){
+  const box=document.getElementById("assetCharts");
+  if(!HH.length){box.innerHTML=`<div class="empty" style="color:var(--ink3);font-size:12.5px">Sin activos tildados.</div>`;return;}
+  const W=240,H=92,PL=3,PR=3,PT=8,PB=6;
+  const d0=(D.fechas[i0]||"").slice(0,7), d1=(D.fechas[ND-1]||"").slice(0,7);
+  box.innerHTML=HH.map((h,idx)=>{
+    const s=S[idx], cum=[100]; let c=0;
+    for(let k=0;k<n;k++){c+=s[k];cum.push(100*Math.exp(c));}
+    const lo=Math.min(...cum),hi=Math.max(...cum),pad=(hi-lo)*0.06||1;
+    const x=k=>PL+k/(cum.length-1)*(W-PL-PR);
+    const y=v=>PT+(1-(v-(lo-pad))/((hi+pad)-(lo-pad)))*(H-PT-PB);
+    const path=cum.map((v,k)=>(k?"L":"M")+x(k).toFixed(1)+" "+y(v).toFixed(1)).join(" ");
+    const fillp=`${path} L ${x(cum.length-1).toFixed(1)} ${(H-PB).toFixed(1)} L ${x(0).toFixed(1)} ${(H-PB).toFixed(1)} Z`;
+    const tot=cum[cum.length-1]/100-1;
+    const col=tot>0?"var(--pos)":tot<0?"var(--neg)":"var(--ink3)";
+    const base=(100>=lo-pad&&100<=hi+pad)?`<line x1="${PL}" y1="${y(100).toFixed(1)}" x2="${W-PR}" y2="${y(100).toFixed(1)}" stroke="var(--rule2)" stroke-width="1"/>`:"";
+    const nm=h.custom?h.name:h.t;
+    return `<div class="mini">
+      <div class="mh"><span class="mt">${esc(nm)}</span><span class="mv ${cls(tot)}">${tot>0?"+":""}${pct(tot,1)}</span></div>
+      <svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Evolución de ${esc(nm)} base 100">
+        ${base}
+        <path d="${fillp}" fill="${col}" opacity="0.10" stroke="none"/>
+        <path d="${path}" fill="none" stroke="${col}" stroke-width="1.6"/>
+      </svg>
+      <div class="ms"><span>${d0}</span><span>→ ${fmt(cum[cum.length-1],1)}</span><span>${d1}</span></div>
+    </div>`;
+  }).join("");
 }
 
 /* ---- posiciona guía + tooltip + lectura del día j (1..n) ---- */
