@@ -378,6 +378,43 @@ input[type=text],input[type=number]{cursor:text}
     </section>
 
     <section class="card">
+      <div class="hd"><h2>Sugeridor de carteras</h2><span class="note">frontera eficiente · desde bloques</span></div>
+      <div class="bd">
+        <div class="grid2" style="max-width:540px;align-items:end">
+          <div>
+            <label class="f">Universo de partida</label>
+            <select id="sugPool">
+              <option value="bloques">Bloques diversificados</option>
+              <option value="ced">Solo bloques con CEDEAR</option>
+              <option value="mis">Mis activos cargados</option>
+            </select>
+          </div>
+          <div>
+            <label class="f">Peso máx por activo %</label>
+            <input type="number" id="sugCap" value="35" min="5" max="100" step="1">
+          </div>
+        </div>
+        <div class="grid3" style="max-width:540px;margin-top:10px">
+          <div><label class="f">Vol. conservador %</label><input type="number" id="volC" value="6" min="1" step="0.5"></div>
+          <div><label class="f">Vol. moderado %</label><input type="number" id="volM" value="12" min="1" step="0.5"></div>
+          <div><label class="f">Vol. agresivo %</label><input type="number" id="volA" value="18" min="1" step="0.5"></div>
+        </div>
+        <div class="btnrow" style="margin-top:12px">
+          <button class="btn pri" id="bSug">Generar sugerencias</button>
+        </div>
+        <div id="sugOut" class="hidden" style="margin-top:16px">
+          <div id="sugChart"></div>
+          <div class="tw" style="margin-top:14px"><table id="tSug"></table></div>
+          <div class="callout" style="margin-top:14px">
+            <b>Cómo leerlo.</b> La frontera y las sugerencias se calculan sobre la ventana elegida y miran el pasado.
+            Son un punto de partida, no una verdad futura: los perfiles fijan un techo de volatilidad y buscan el mejor
+            retorno histórico bajo ese techo. Revisá la composición antes de aplicarla.
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
       <div class="hd"><h2>Si saco cada activo</h2><span class="note">peso redistribuido a prorrata</span></div>
       <div class="bd"><div class="tw"><table id="tDrop"></table></div></div>
     </section>
@@ -933,6 +970,113 @@ document.querySelectorAll("[data-opt]").forEach(b=>b.onclick=()=>{
 document.getElementById("bApply").onclick=()=>{if(!optW||!optHH)return;
   optHH.forEach((h,i)=>h.w=+(optW[i]*100).toFixed(2));
   optW=null;optHH=null;document.getElementById("optOut").classList.add("hidden");render()};
+
+/* ============ sugeridor de carteras (frontera eficiente + perfiles) ============ */
+const POOL_BLOQUES=["SPY","QQQ","ACWI","VEA","EEM","IVE","SPHQ","RSP","GLD","AGG","LQD","IEF","TLT","SHY","TIP"];
+let sugList=null, sugPoolCur=null;
+function sugPoolTickers(){
+  const mode=document.getElementById("sugPool").value;
+  if(mode==="mis") return holds.filter(h=>!h.custom&&A[h.t]).map(h=>h.t);
+  let p=POOL_BLOQUES.filter(t=>A[t]);
+  if(mode==="ced") p=p.filter(t=>A[t].ced);
+  return p;
+}
+function buildPool(pool){
+  let i0=idx0(); const offs=pool.map(t=>A[t].off||0); if(offs.length)i0=Math.max(i0,...offs);
+  const n=ND-i0;
+  const S=pool.map(t=>{const off=A[t].off||0,r=A[t].r,o=new Float64Array(n);for(let i=i0;i<ND;i++)o[i-i0]=r[i-off]/SC;return o;});
+  const mu=S.map(s=>mean(Array.from(s))*N);
+  const k=S.length,C=[];
+  for(let a=0;a<k;a++){C.push([]);for(let b=0;b<k;b++)C[a].push(cov(Array.from(S[a]),Array.from(S[b]))*N);}
+  return {i0,n,mu,C};
+}
+// maximiza  mu·w - lam·w'Cw  sobre {sum w=1, lo<=w<=hi}
+function mvMaximize(mu,C,lam,lo,hi){
+  const k=mu.length; if(k===1)return [1];
+  let w=new Array(k).fill(1/k),step=0.5;
+  for(let it=0;it<2500;it++){
+    const Cw=mvmul(C,w);
+    const g=mu.map((m,i)=>m-2*lam*Cw[i]);
+    const gn=Math.sqrt(g.reduce((s,x)=>s+x*x,0))||1;
+    w=project(w.map((x,i)=>x+step*g[i]/gn),lo,hi);
+    step*=0.9992;
+  }
+  return w;
+}
+document.getElementById("bSug").onclick=()=>{
+  const pool=sugPoolTickers();
+  if(pool.length<3){alert("Necesito al menos 3 activos en el universo. Si elegiste 'Mis activos', cargá más (no manuales).");return;}
+  const {mu,C}=buildPool(pool);
+  const hi=Math.max(0.05,(+document.getElementById("sugCap").value||100)/100), lo=0;
+  if(hi*pool.length<1){alert("El peso máximo por activo es muy bajo para la cantidad de activos del universo.");return;}
+  const pts=[];
+  for(let s=0;s<=44;s++){const lam=Math.pow(10,-1+s/44*3.6);
+    const w=mvMaximize(mu,C,lam,lo,hi), ret=dot(w,mu), vol=pvol(C,w);
+    if(isFinite(vol)&&isFinite(ret)&&vol>0) pts.push({w,ret,vol,sharpe:(ret-rf)/vol});}
+  if(pts.length<2){alert("No pude construir la frontera con ese universo.");return;}
+  pts.sort((a,b)=>a.vol-b.vol);
+  const minv=pts[0], maxsh=pts.reduce((m,p)=>p.sharpe>m.sharpe?p:m,pts[0]);
+  const targets=[["Conservador",(+document.getElementById("volC").value||6)/100],
+                 ["Moderado",(+document.getElementById("volM").value||12)/100],
+                 ["Agresivo",(+document.getElementById("volA").value||18)/100]];
+  const profiles=targets.map(([name,tv])=>{
+    const ok=pts.filter(p=>p.vol<=tv+1e-9);
+    const pick=ok.length?ok.reduce((m,p)=>p.ret>m.ret?p:m,ok[0]):pts[pts.length-1];
+    return Object.assign({name,tv},pick);
+  });
+  sugList=[Object.assign({name:"Mínima volatilidad"},minv),...profiles,Object.assign({name:"Máximo Sharpe"},maxsh)];
+  sugPoolCur=pool;
+  drawSugChart(pool,mu,C,pts,sugList);
+  renderSugTable(pool,sugList);
+  document.getElementById("sugOut").classList.remove("hidden");
+};
+function renderSugTable(pool,sug){
+  const top=w=>pool.map((t,i)=>({t,w:w[i]})).filter(x=>x.w>0.005).sort((a,b)=>b.w-a.w).slice(0,5).map(x=>`${x.t} ${fmt(x.w*100,0)}%`).join(" · ");
+  document.getElementById("tSug").innerHTML=
+   `<thead><tr><th>Perfil</th><th>Retorno</th><th>Vol.</th><th>Sharpe</th><th>Composición principal</th><th></th></tr></thead><tbody>`+
+   sug.map((s,i)=>`<tr>
+     <td class="tk">${esc(s.name)}${s.tv?` <span style="color:var(--ink3);font-weight:400">obj. ${fmt(s.tv*100,0)}%</span>`:""}</td>
+     <td class="${cls(s.ret)}">${pct(s.ret,1)}</td><td>${pct(s.vol,1)}</td><td class="${cls(s.sharpe)}">${fmt(s.sharpe)}</td>
+     <td style="white-space:normal;font-size:11px;color:var(--ink2)">${esc(top(s.w))}</td>
+     <td><button class="btn" data-sug="${i}">Aplicar</button></td></tr>`).join("")+"</tbody>";
+  document.getElementById("tSug").querySelectorAll("[data-sug]").forEach(b=>b.onclick=()=>{
+    const s=sugList[+b.dataset.sug];
+    holds=sugPoolCur.map((t,i)=>({t,w:+(s.w[i]*100).toFixed(2),on:true})).filter(h=>h.w>0.5);
+    optW=null;optHH=null;document.getElementById("optOut").classList.add("hidden");render();
+    document.getElementById("out").scrollIntoView({behavior:"smooth",block:"start"});
+  });
+}
+function drawSugChart(pool,mu,C,pts,sug){
+  const W=900,H=300,PL=54,PR=14,PT=14,PB=36;
+  const av=pool.map((t,i)=>({t,vol:Math.sqrt(Math.max(C[i][i],0)),ret:mu[i]}));
+  const vhi=Math.max(...pts.map(p=>p.vol),...av.map(a=>a.vol))*1.08||0.1;
+  const rlo=Math.min(0,...pts.map(p=>p.ret),...av.map(a=>a.ret));
+  const rhi=Math.max(...pts.map(p=>p.ret),...av.map(a=>a.ret))*1.08||0.1;
+  const x=v=>PL+(v-0)/((vhi)||1)*(W-PL-PR);
+  const y=r=>PT+(1-(r-rlo)/((rhi-rlo)||1))*(H-PT-PB);
+  const env=[...pts]; let mr=-1e9; const envp=[];
+  for(const p of env){ if(p.ret>=mr-1e-9){mr=Math.max(mr,p.ret);envp.push(p);} }
+  const fpath=envp.map((p,i)=>(i?"L":"M")+x(p.vol).toFixed(1)+" "+y(p.ret).toFixed(1)).join(" ");
+  const vt=[]; for(let v=0;v<=vhi+1e-9;v+=0.05)vt.push(+v.toFixed(4));
+  const rt=[]; for(let r=Math.ceil(rlo/0.05)*0.05;r<=rhi+1e-9;r+=0.05)rt.push(+r.toFixed(4));
+  const marks=sug.map(s=>{const col=s.tv?"var(--signal)":(s.name.indexOf("Sharpe")>=0?"var(--pos)":"var(--weight)");
+    return `<circle cx="${x(s.vol).toFixed(1)}" cy="${y(s.ret).toFixed(1)}" r="4.5" fill="${col}" stroke="var(--surface2)" stroke-width="1"/>
+      <text class="axl" x="${x(s.vol).toFixed(1)}" y="${(y(s.ret)-8).toFixed(1)}" text-anchor="middle" style="font-weight:600;fill:var(--ink)">${esc(s.name.split(" ")[0])}</text>`;}).join("");
+  document.getElementById("sugChart").innerHTML=`<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Frontera eficiente riesgo-retorno">
+    ${vt.map(v=>`<line class="gl" x1="${x(v).toFixed(1)}" y1="${PT}" x2="${x(v).toFixed(1)}" y2="${H-PB}"/><text class="axl" x="${x(v).toFixed(1)}" y="${H-PB+13}" text-anchor="middle">${fmt(v*100,0)}%</text>`).join("")}
+    ${rt.map(r=>`<line class="gl" x1="${PL}" y1="${y(r).toFixed(1)}" x2="${W-PR}" y2="${y(r).toFixed(1)}"/><text class="axl" x="${PL-7}" y="${(y(r)+3).toFixed(1)}" text-anchor="end">${fmt(r*100,0)}%</text>`).join("")}
+    ${av.map(a=>`<circle cx="${x(a.vol).toFixed(1)}" cy="${y(a.ret).toFixed(1)}" r="2.5" fill="var(--ink3)"/><text class="axl" x="${(x(a.vol)+4).toFixed(1)}" y="${(y(a.ret)+3).toFixed(1)}">${esc(a.t)}</text>`).join("")}
+    <path d="${fpath}" fill="none" stroke="var(--weight)" stroke-width="2"/>
+    ${marks}
+    <text class="axl" x="${(PL+(W-PL-PR)/2).toFixed(1)}" y="${H-2}" text-anchor="middle" style="fill:var(--ink3)">Volatilidad anual →</text>
+  </svg>
+  <div style="display:flex;gap:16px;margin-top:6px;font-family:var(--mono);font-size:10.5px;color:var(--ink3);flex-wrap:wrap">
+    <span>● <span style="color:var(--weight)">Mín vol</span></span>
+    <span>● <span style="color:var(--signal)">Perfiles (vol objetivo)</span></span>
+    <span>● <span style="color:var(--pos)">Máx Sharpe</span></span>
+    <span>● activos individuales</span>
+  </div>`;
+}
 
 /* ---- guardar / exportar ---- */
 document.getElementById("bSave").onclick=()=>{drawerOpen(true);document.getElementById("cartName").focus();};
