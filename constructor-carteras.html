@@ -869,25 +869,33 @@ function drawAssetCharts(HH,S,i0,n){
     <div class="mdate" id="mdate"></div>
     <div class="mleg" id="mleg">${series.map(s=>{const t=s.cum[s.cum.length-1]/100-1;return `<span class="mli"><span class="sw" style="background:${s.color}"></span>${esc(s.name)} <b class="${cls(t)}">${t>0?"+":""}${pct(t,1)}</b></span>`;}).join("")}</div>
   </div>`;
-  MULTI={n,i0,x,series,W,gm:document.getElementById("gm"),date:document.getElementById("mdate"),
+  const wrap=box.querySelector(".chartwrap");
+  MULTI={n,i0,x,series,W,wrap,gm:document.getElementById("gm"),date:document.getElementById("mdate"),
     tip:document.getElementById("mtip")};
   const hit=box.querySelector(".hit");
-  hit.addEventListener("mousemove",ev=>{const r=hit.getBoundingClientRect();let f=(ev.clientX-r.left)/r.width;f=Math.max(0,Math.min(1,f));showMultiAt(Math.round(f*n),true);});
-  hit.addEventListener("mouseleave",()=>showMultiAt(n,false));
-  showMultiAt(n,false);
+  hit.addEventListener("mousemove",ev=>{const r=hit.getBoundingClientRect();let f=(ev.clientX-r.left)/r.width;f=Math.max(0,Math.min(1,f));
+    const wr=wrap.getBoundingClientRect();
+    showMultiAt(Math.round(f*n),{mx:ev.clientX-wr.left,my:ev.clientY-wr.top});});
+  hit.addEventListener("mouseleave",()=>showMultiAt(n,null));
+  showMultiAt(n,null);
 }
-function showMultiAt(k,tip){
+function showMultiAt(k,mouse){
   if(!MULTI)return; const M=MULTI,n=M.n; k=Math.max(0,Math.min(n,Math.round(k)));
   const xp=M.x(k);
-  M.gm.setAttribute("x1",xp);M.gm.setAttribute("x2",xp);M.gm.setAttribute("opacity",tip?1:0);
+  M.gm.setAttribute("x1",xp);M.gm.setAttribute("x2",xp);M.gm.setAttribute("opacity",mouse?1:0);
   const fecha = k===0 ? (D.fechas[M.i0]||"") : (D.fechas[M.i0+k-1]||"");
-  M.date.textContent = tip ? fecha : "";
-  if(tip){
+  M.date.textContent = mouse ? fecha : "";
+  if(mouse){
     const rows=M.series.map(s=>({name:s.name,color:s.color,v:s.cum[k]/100-1})).sort((a,b)=>b.v-a.v);
     M.tip.innerHTML=`<div class="d">${esc(fecha)} · acumulado del período</div>`+
       rows.map(r=>`<div class="rowt"><span><span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:${r.color};margin-right:5px"></span>${esc(r.name)}</span><b class="${cls(r.v)}">${r.v>0?"+":""}${pct(r.v,1)}</b></div>`).join("");
-    let L=xp/M.W*100; L=Math.max(13,Math.min(87,L));
-    M.tip.style.left=L+"%"; M.tip.style.top="6px"; M.tip.style.transform="translateX(-50%)";
+    // seguir al cursor, al costado, sin taparlo; saltar de lado cerca del borde
+    M.tip.style.transform="none";
+    const ww=M.wrap.clientWidth, wh=M.wrap.clientHeight, tw=M.tip.offsetWidth, th=M.tip.offsetHeight;
+    let left = mouse.mx + 18; if(left + tw > ww - 4) left = mouse.mx - 18 - tw;
+    left = Math.max(4, Math.min(left, ww - tw - 4));
+    let top = mouse.my - th/2; top = Math.max(4, Math.min(top, wh - th - 4));
+    M.tip.style.left = left+"px"; M.tip.style.top = top+"px";
     M.tip.style.opacity="1";
   } else { M.tip.style.opacity="0"; }
 }
