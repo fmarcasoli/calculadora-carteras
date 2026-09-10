@@ -258,10 +258,10 @@ input[type=text],input[type=number]{cursor:text}
           <input type="text" id="q" placeholder="Buscar ticker o nombre…" autocomplete="off">
           <div class="results" id="results"></div>
         </div>
-        <label class="f" style="margin:12px 0 6px">Solo con CEDEAR</label>
+        <label class="f" style="margin:12px 0 6px">Disponible en BYMA</label>
         <div class="seg" id="segCed">
           <button data-c="0" aria-pressed="true">Todos</button>
-          <button data-c="1" aria-pressed="false">Solo CEDEAR</button>
+          <button data-c="1" aria-pressed="false">Solo BYMA</button>
         </div>
 
         <div class="holds" id="holds"></div>
@@ -385,7 +385,7 @@ input[type=text],input[type=number]{cursor:text}
             <label class="f">Universo de partida</label>
             <select id="sugPool">
               <option value="bloques">Bloques diversificados</option>
-              <option value="ced">Solo bloques con CEDEAR</option>
+              <option value="ced">Solo bloques en BYMA</option>
               <option value="mis">Mis activos cargados</option>
             </select>
           </div>
@@ -444,7 +444,7 @@ input[type=text],input[type=number]{cursor:text}
   y ahí no hay desvío estándar, hay un escalón. Un FCI de ONs o una ON directa van a mostrar volatilidad baja y
   correlación baja hasta el día que no. Lo mismo vale para las correlaciones: las que ves acá se midieron en régimen
   normal y suben justo cuando más te importaría que no lo hicieran.</p>
-  <p>Datos de Yahoo Finance (precios) y BYMA vía data912 (disponibilidad de CEDEAR), congelados al generar el archivo.
+  <p>Datos de Yahoo Finance (precios) y BYMA vía data912 (disponibilidad en BYMA: CEDEAR o acción local), congelados al generar el archivo.
   Herramienta de análisis cuantitativo, no asesoramiento de inversión.</p>
 </footer>
 
@@ -689,7 +689,7 @@ function render(){
 
   /* --- tabla activos --- */
   document.getElementById("tAssets").innerHTML=
-    `<thead><tr><th>Activo</th><th>Peso</th><th>Ret. an.</th><th>Vol. an.</th><th>Sharpe</th><th>Corr. cartera</th><th>Beta</th><th>Aporte riesgo</th><th>Riesgo/peso</th><th>CEDEAR</th></tr></thead><tbody>`+
+    `<thead><tr><th>Activo</th><th>Peso</th><th>Ret. an.</th><th>Vol. an.</th><th>Sharpe</th><th>Corr. cartera</th><th>Beta</th><th>Aporte riesgo</th><th>Riesgo/peso</th><th>BYMA</th></tr></thead><tbody>`+
     [...rows].sort((a,b)=>b.w-a.w).map(r=>`<tr>
       <td class="tk">${esc(r.h.custom?r.h.name:r.h.t)}</td>
       <td>${fmt(r.w*100,2)}%</td>
@@ -870,7 +870,7 @@ function renderHolds(){
   document.getElementById("totv").textContent=fmt(tot,2)+"%";
   document.getElementById("tot").className="tot"+(act.length?"":" bad");
   const nc=act.filter(h=>!h.custom&&A[h.t]&&A[h.t].ced).length, nco=act.filter(h=>!h.custom).length;
-  document.getElementById("nCed").textContent=holds.length?`${act.length}/${holds.length} activos${nco?` · ${nc}/${nco} con CEDEAR`:""}`:"";
+  document.getElementById("nCed").textContent=holds.length?`${act.length}/${holds.length} activos${nco?` · ${nc}/${nco} en BYMA`:""}`:"";
   el.querySelectorAll('input[type=number]').forEach(inp=>inp.oninput=e=>{holds[+e.target.dataset.i].w=Math.max(0,+e.target.value||0);
     const t=activeHolds().reduce((s,h)=>s+(+h.w||0),0);
     document.getElementById("totv").textContent=fmt(t,2)+"%";
@@ -898,7 +898,7 @@ function showRes(){
   if(!curRes.length){box.innerHTML=`<div class="res"><span class="n">Sin resultados</span></div>`;box.classList.add("on");return}
   box.innerHTML=curRes.map((t,i)=>`<div class="res" data-t="${t}" data-i="${i}">
     <span class="t">${t}</span><span class="n">${esc(A[t].n)}</span>
-    <span class="tag">${esc(A[t].c)}</span>${A[t].ced?`<span class="tag ced">CEDEAR</span>`:""}</div>`).join("");
+    <span class="tag">${esc(A[t].c)}</span>${A[t].ced?`<span class="tag ced">BYMA</span>`:""}</div>`).join("");
   box.classList.add("on");
   box.querySelectorAll(".res[data-t]").forEach(d=>d.onclick=()=>add(d.dataset.t));
 }

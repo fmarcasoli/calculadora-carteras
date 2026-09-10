@@ -88,6 +88,11 @@ ALIAS_CEDEAR = {"BRK-B": "BRKB", "DIS": "DISN", "GOOG": "GOGL"}
 ALIAS_BYMA = {"BRKB": "BRK-B", "DISN": "DIS", "GOGL": "GOOGL",
               "GOGLC": "GOOGL", "GOGLD": "GOOGL"}
 
+# Ticker de Yahoo → símbolo local en BYMA, para acciones argentinas que cotizan
+# directo (no como CEDEAR) y cuyo símbolo difiere del ticker del ADR.
+ALIAS_BYMA_LOCAL = {"YPF": "YPFD", "PAM": "PAMP", "CRESY": "CRES",
+                    "IRS": "IRSA", "TGS": "TGSU2", "TEO": "TECO2"}
+
 UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
       "(KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36")
 CTX = ssl.create_default_context()
@@ -143,6 +148,15 @@ def bajar_cedears():
         return {x["symbol"] for x in http_json("https://data912.com/live/arg_cedears", timeout=30)}
     except Exception as e:
         print(f"  aviso: no pude traer la lista de CEDEARs ({e}). Se marcan todos como 'no'.")
+        return set()
+
+
+def bajar_acciones_ar():
+    """Símbolos de acciones argentinas locales en BYMA (YPF→YPFD, GGAL, etc.)."""
+    try:
+        return {x["symbol"] for x in http_json("https://data912.com/live/arg_stocks", timeout=30)}
+    except Exception as e:
+        print(f"  aviso: no pude traer la lista de acciones AR ({e}).")
         return set()
 
 
@@ -250,8 +264,11 @@ def main():
             universo[t] = (buscar_nombre(t), "Agregado")
             print(f"  nuevo: {t} — {universo[t][0]}")
 
-    # ---- lista de CEDEARs de BYMA (para marcar 'ced' y, opcional, poblar el universo) ----
+    # ---- disponibilidad en BYMA: CEDEARs + acciones AR locales (para marcar 'ced') ----
+    # La discovery del universo (--todos) usa solo los CEDEARs; el flag de
+    # disponibilidad usa además las acciones argentinas (YPF→YPFD, GGAL, etc.).
     cedears = bajar_cedears()
+    disponibles = cedears | bajar_acciones_ar()
     dl = {}             # clave del universo -> ticker de Yahoo (si difiere)
     forzar_ced = set()  # activos que son CEDEAR por construcción
     if not args.sin_todos_cedears and not cedears:
@@ -300,7 +317,8 @@ def main():
     import math
 
     def tiene_cedear(t):
-        return (t in forzar_ced) or (ALIAS_CEDEAR.get(t, t) in cedears) or (t in cedears)
+        cands = {t, ALIAS_CEDEAR.get(t, t), ALIAS_BYMA_LOCAL.get(t, t)}
+        return (t in forzar_ced) or any(c in disponibles for c in cands)
 
     # ---- serie de cada activo sobre el calendario, con su propio inicio ----
     #  off = primer índice de retorno donde el activo ya cotiza. Los activos
