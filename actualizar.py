@@ -254,6 +254,12 @@ def main():
     cedears = bajar_cedears()
     dl = {}             # clave del universo -> ticker de Yahoo (si difiere)
     forzar_ced = set()  # activos que son CEDEAR por construcción
+    if not args.sin_todos_cedears and not cedears:
+        # Guard: pediste todos los CEDEARs pero data912 vino vacío (corte
+        # transitorio). Abortar en vez de generar un universo degradado que
+        # pisaría datos.js. En el cron esto falla la corrida y deja el anterior.
+        sys.exit("data912 no devolvió CEDEARs (posible corte). Aborto para no "
+                 "degradar los datos. Reintentá, o usá --sin-todos-cedears a propósito.")
     if cedears and not args.sin_todos_cedears:
         # símbolos BYMA que el universo curado ya cubre (para no duplicar)
         cubiertos = {ALIAS_CEDEAR.get(t, t) for t in universo}
