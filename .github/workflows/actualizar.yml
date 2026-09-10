@@ -1,0 +1,44 @@
+name: Actualizar datos
+
+# Refresca los precios y reescribe constructor-carteras.html.
+# Al hacer push del cambio, Vercel redeploya solo con los datos nuevos.
+
+on:
+  schedule:
+    # 21:30 UTC de lunes a viernes ≈ 18:30 ART, ya cerrado el mercado US.
+    # (el cron de Actions puede demorarse algunos minutos bajo carga)
+    - cron: "30 21 * * 1-5"
+  workflow_dispatch: {} # permite dispararlo a mano desde la pestaña Actions
+
+permissions:
+  contents: write
+
+concurrency:
+  group: actualizar-datos
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Refrescar precios
+        run: python actualizar.py --sin-backup
+
+      - name: Commitear si hubo cambios
+        run: |
+          if [ -n "$(git status --porcelain constructor-carteras.html)" ]; then
+            git config user.name "actualizar-bot"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add constructor-carteras.html
+            git commit -m "datos: $(date -u +%Y-%m-%d)"
+            git push
+          else
+            echo "Sin cambios en los datos."
+          fi
