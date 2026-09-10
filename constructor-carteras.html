@@ -183,6 +183,26 @@ input[type=text],input[type=number]{cursor:text}
 .spin{display:inline-block;width:12px;height:12px;border:2px solid var(--rule);border-top-color:var(--weight);border-radius:50%;animation:spin .7s linear infinite;vertical-align:-2px}
 @keyframes spin{to{transform:rotate(360deg)}}
 
+/* ---------- hamburger + drawer de carteras ---------- */
+.hamb{display:inline-flex;flex-direction:column;justify-content:center;gap:3.5px;width:36px;height:34px;padding:0 8px;border:1px solid var(--rule);border-radius:3px;background:var(--surface2);cursor:pointer;flex:none}
+.hamb span{display:block;height:2px;background:var(--ink2);border-radius:1px}
+.hamb:hover{border-color:var(--ink3)}
+.scrim{position:fixed;inset:0;background:rgba(18,23,20,.34);opacity:0;pointer-events:none;transition:opacity .18s;z-index:60}
+.scrim.on{opacity:1;pointer-events:auto}
+.drawer{position:fixed;top:0;left:0;height:100%;width:340px;max-width:88vw;background:var(--surface);border-right:1px solid var(--rule);transform:translateX(-103%);transition:transform .2s;z-index:61;display:flex;flex-direction:column;box-shadow:0 0 40px rgba(18,23,20,.18)}
+.drawer.on{transform:none}
+.drawer .dhd{padding:14px 16px;border-bottom:1px solid var(--rule2);display:flex;align-items:center;gap:10px}
+.drawer .dhd h2{font-size:14px}
+.drawer .dclose{margin-left:auto;border:0;background:none;font-size:22px;line-height:1;cursor:pointer;color:var(--ink3)}
+.drawer .dbd{padding:14px 16px;overflow-y:auto;display:flex;flex-direction:column;gap:14px}
+.cart{display:flex;align-items:center;gap:7px;padding:8px 9px;border:1px solid var(--rule2);border-radius:3px;background:var(--surface2);cursor:pointer;transition:border-color .12s}
+.cart:hover{border-color:var(--ink3)}
+.cart .cn{flex:1;font-weight:600;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cart .cmeta{font-family:var(--mono);font-size:10px;color:var(--ink3)}
+.cart .ci{border:0;background:none;cursor:pointer;color:var(--ink3);font-size:12px;padding:2px 4px;border-radius:2px}
+.cart .ci:hover{color:var(--ink);background:var(--paper)}
+.cart.act{border-color:var(--weight);box-shadow:inset 3px 0 0 var(--weight)}
+
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 </style>
 </head>
@@ -190,6 +210,7 @@ input[type=text],input[type=number]{cursor:text}
 
 <header>
   <div class="hwrap">
+    <button class="hamb" id="bMenu" aria-label="Carteras guardadas" aria-expanded="false" aria-controls="drawer"><span></span><span></span><span></span></button>
     <div class="brand">
       <h1>Constructor de carteras</h1>
       <p id="datarange">—</p>
@@ -383,6 +404,37 @@ input[type=text],input[type=number]{cursor:text}
   Herramienta de análisis cuantitativo, no asesoramiento de inversión.</p>
 </footer>
 
+<div class="scrim" id="scrim"></div>
+<aside class="drawer" id="drawer" aria-hidden="true" aria-label="Carteras guardadas">
+  <div class="dhd"><h2>Carteras</h2><button class="dclose" id="bMenuX" aria-label="Cerrar">×</button></div>
+  <div class="dbd">
+    <div>
+      <label class="f">Guardar cartera actual como</label>
+      <div style="display:flex;gap:7px">
+        <input type="text" id="cartName" placeholder="Nombre del cliente…" autocomplete="off">
+        <button class="btn pri" id="bCartSave" style="flex:none">Guardar</button>
+      </div>
+    </div>
+    <div>
+      <div class="eyebrow" style="margin-bottom:7px">Guardadas</div>
+      <div id="cartList"></div>
+    </div>
+    <div>
+      <div class="eyebrow" style="margin-bottom:7px">Modelos</div>
+      <div class="btnrow">
+        <button class="btn" data-preset="personal">Personal</button>
+        <button class="btn" data-preset="modelo">Modelo</button>
+        <button class="btn" data-preset="6040">60 / 40</button>
+      </div>
+    </div>
+    <div class="btnrow">
+      <button class="btn" id="bCartExport">Exportar backup</button>
+      <button class="btn" id="bCartImport">Importar backup</button>
+      <input type="file" id="cartFile" accept="application/json,.json" class="hidden">
+    </div>
+    <p style="font-size:11px;color:var(--ink3);line-height:1.5;margin:0">Las carteras se guardan <b>en este navegador</b> (privadas, no se comparten). Para pasarlas a otra computadora usá Exportar / Importar.</p>
+  </div>
+</aside>
 <script src="datos.js"></script>
 <script>
 "use strict";
@@ -883,14 +935,8 @@ document.getElementById("bApply").onclick=()=>{if(!optW||!optHH)return;
   optW=null;optHH=null;document.getElementById("optOut").classList.add("hidden");render()};
 
 /* ---- guardar / exportar ---- */
-document.getElementById("bSave").onclick=()=>{
-  try{localStorage.setItem("cartera",JSON.stringify(holds));alert("Cartera guardada en este navegador.")}
-  catch(e){alert("No se pudo guardar: el navegador bloquea el almacenamiento local en este archivo.")}};
-document.getElementById("bLoad").onclick=()=>{
-  try{const s=localStorage.getItem("cartera");
-    if(!s){alert("No hay ninguna cartera guardada todavía.");return}
-    holds=JSON.parse(s).filter(h=>h.custom||A[h.t]);render()}
-  catch(e){alert("No se pudo leer la cartera guardada.")}};
+document.getElementById("bSave").onclick=()=>{drawerOpen(true);document.getElementById("cartName").focus();};
+document.getElementById("bLoad").onclick=()=>drawerOpen(true);
 document.getElementById("bCsv").onclick=()=>{
   if(!activeHolds().length)return;
   const {S,C,w,p,i0,HH}=build(); const sig=pvol(C,w), Cw=mvmul(C,w);
@@ -907,6 +953,71 @@ document.getElementById("bLink").onclick=()=>{
   const t=holds.map(h=>`${h.custom?h.name:h.t}\t${fmt(h.w,2)}%`).join("\n");
   navigator.clipboard.writeText(t).then(()=>alert("Copiado. Pegalo en Excel o Sheets."),
     ()=>alert("El navegador no permite copiar desde un archivo local."));};
+
+/* ============ carteras guardadas (localStorage, privadas por navegador) ============ */
+const CART_KEY="carteras_v1";
+let curCart=null;
+function cartLoadAll(){try{return JSON.parse(localStorage.getItem(CART_KEY))||{}}catch(e){return {}}}
+function cartSaveAll(o){try{localStorage.setItem(CART_KEY,JSON.stringify(o));return true}catch(e){alert("No se pudo guardar: el navegador bloquea el almacenamiento local.");return false}}
+function stateNow(){return {holds,win,rf,bench,ts:Date.now()};}
+function applyState(st){
+  holds=(st.holds||[]).filter(h=>h.custom||A[h.t]);
+  if(st.win!=null)win=st.win; if(st.rf!=null)rf=st.rf; if(A[st.bench])bench=st.bench;
+  [...document.getElementById("segWin").children].forEach(c=>c.setAttribute("aria-pressed",(+c.dataset.w)===win));
+  document.getElementById("rf").value=(rf*100).toFixed(2);
+  document.getElementById("bench").value=bench;
+  optW=null;optHH=null;document.getElementById("optOut").classList.add("hidden");
+  render();
+}
+function renderCartList(){
+  const all=cartLoadAll(), names=Object.keys(all).sort((a,b)=>a.localeCompare(b,"es"));
+  const el=document.getElementById("cartList");
+  if(!names.length){el.innerHTML=`<p style="font-size:12px;color:var(--ink3);margin:0">Todavía no guardaste ninguna cartera.</p>`;return;}
+  el.innerHTML=names.map(n=>{const c=all[n],k=(c.holds||[]).length;
+    return `<div class="cart ${n===curCart?"act":""}" data-load="${esc(n)}" style="margin-bottom:6px">
+      <span class="cn">${esc(n)}</span><span class="cmeta">${k} act.</span>
+      <button class="ci" data-ren="${esc(n)}" title="Renombrar" aria-label="Renombrar ${esc(n)}">✎</button>
+      <button class="ci" data-del="${esc(n)}" title="Borrar" aria-label="Borrar ${esc(n)}">✕</button></div>`;}).join("");
+  el.querySelectorAll("[data-load]").forEach(d=>d.onclick=e=>{if(e.target.closest(".ci"))return;
+    const n=d.dataset.load, all=cartLoadAll(); if(all[n]){curCart=n;applyState(all[n]);document.getElementById("cartName").value=n;renderCartList();}});
+  el.querySelectorAll("[data-ren]").forEach(b=>b.onclick=()=>{const n=b.dataset.ren,nn=(prompt("Nuevo nombre:",n)||"").trim();
+    if(!nn||nn===n)return; const all=cartLoadAll(); if(all[nn]&&!confirm(`Ya existe "${nn}". ¿Sobrescribir?`))return;
+    all[nn]=all[n];delete all[n];cartSaveAll(all);if(curCart===n)curCart=nn;renderCartList();});
+  el.querySelectorAll("[data-del]").forEach(b=>b.onclick=()=>{const n=b.dataset.del;
+    if(!confirm(`¿Borrar la cartera "${n}"?`))return; const all=cartLoadAll();delete all[n];cartSaveAll(all);if(curCart===n)curCart=null;renderCartList();});
+}
+function drawerOpen(o){
+  document.getElementById("drawer").classList.toggle("on",o);
+  document.getElementById("scrim").classList.toggle("on",o);
+  document.getElementById("bMenu").setAttribute("aria-expanded",o);
+  document.getElementById("drawer").setAttribute("aria-hidden",!o);
+  if(o)renderCartList();
+}
+document.getElementById("bMenu").onclick=()=>drawerOpen(true);
+document.getElementById("bMenuX").onclick=()=>drawerOpen(false);
+document.getElementById("scrim").onclick=()=>drawerOpen(false);
+document.addEventListener("keydown",e=>{if(e.key==="Escape")drawerOpen(false)});
+document.getElementById("bCartSave").onclick=()=>{
+  const n=document.getElementById("cartName").value.trim();
+  if(!n){alert("Poné un nombre para la cartera.");return;}
+  if(!activeHolds().length&&!holds.length){alert("La cartera está vacía.");return;}
+  const all=cartLoadAll();
+  if(all[n]&&n!==curCart&&!confirm(`Ya existe "${n}". ¿Sobrescribir?`))return;
+  all[n]=stateNow(); if(cartSaveAll(all)){curCart=n;renderCartList();}
+};
+document.getElementById("bCartExport").onclick=()=>{
+  const blob=new Blob([JSON.stringify(cartLoadAll(),null,2)],{type:"application/json"});
+  const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="carteras.json";a.click();URL.revokeObjectURL(a.href);
+};
+document.getElementById("bCartImport").onclick=()=>document.getElementById("cartFile").click();
+document.getElementById("cartFile").onchange=e=>{const f=e.target.files[0];if(!f)return;
+  const rd=new FileReader();
+  rd.onload=()=>{try{const inc=JSON.parse(rd.result);
+    if(typeof inc!=="object"||Array.isArray(inc))throw 0;
+    const all=Object.assign(cartLoadAll(),inc);cartSaveAll(all);renderCartList();
+    alert(`Importadas ${Object.keys(inc).length} carteras.`);
+  }catch(err){alert("Archivo inválido: tiene que ser un backup de carteras (.json).");}};
+  rd.readAsText(f);e.target.value="";};
 
 /* ============ init ============ */
 (function(){
