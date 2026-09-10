@@ -865,21 +865,31 @@ function drawAssetCharts(HH,S,i0,n){
       <line id="gm" x1="0" y1="${PT}" x2="0" y2="${H1-PB}" stroke="var(--ink)" stroke-width="1" stroke-dasharray="2 2" opacity="0"/>
       <rect class="hit" x="${PL}" y="${PT}" width="${W-PL-PR}" height="${H1-PT-PB}" fill="rgba(0,0,0,0)"/>
     </svg>
+    <div id="mtip" class="ctip" style="opacity:0;left:0;top:0"></div>
     <div class="mdate" id="mdate"></div>
-    <div class="mleg" id="mleg">${series.map((s,i)=>`<span class="mli"><span class="sw" style="background:${s.color}"></span>${esc(s.name)} <b data-mi="${i}">${fmt(s.cum[s.cum.length-1],1)}</b></span>`).join("")}</div>
+    <div class="mleg" id="mleg">${series.map(s=>{const t=s.cum[s.cum.length-1]/100-1;return `<span class="mli"><span class="sw" style="background:${s.color}"></span>${esc(s.name)} <b class="${cls(t)}">${t>0?"+":""}${pct(t,1)}</b></span>`;}).join("")}</div>
   </div>`;
-  MULTI={n,i0,x,series,gm:document.getElementById("gm"),date:document.getElementById("mdate"),
-    vals:[...document.querySelectorAll('#mleg [data-mi]')]};
+  MULTI={n,i0,x,series,W,gm:document.getElementById("gm"),date:document.getElementById("mdate"),
+    tip:document.getElementById("mtip")};
   const hit=box.querySelector(".hit");
-  hit.addEventListener("mousemove",ev=>{const r=hit.getBoundingClientRect();let f=(ev.clientX-r.left)/r.width;f=Math.max(0,Math.min(1,f));showMultiAt(Math.round(f*n));});
-  hit.addEventListener("mouseleave",()=>showMultiAt(n));
-  showMultiAt(n);
+  hit.addEventListener("mousemove",ev=>{const r=hit.getBoundingClientRect();let f=(ev.clientX-r.left)/r.width;f=Math.max(0,Math.min(1,f));showMultiAt(Math.round(f*n),true);});
+  hit.addEventListener("mouseleave",()=>showMultiAt(n,false));
+  showMultiAt(n,false);
 }
-function showMultiAt(k){
+function showMultiAt(k,tip){
   if(!MULTI)return; const M=MULTI,n=M.n; k=Math.max(0,Math.min(n,Math.round(k)));
-  const xp=M.x(k); M.gm.setAttribute("x1",xp);M.gm.setAttribute("x2",xp);M.gm.setAttribute("opacity",k===n?0:1);
-  M.date.textContent = k===0 ? "" : (D.fechas[M.i0+k-1]||"");
-  M.series.forEach((s,i)=>{ if(M.vals[i]) M.vals[i].textContent=fmt(s.cum[k],1); });
+  const xp=M.x(k);
+  M.gm.setAttribute("x1",xp);M.gm.setAttribute("x2",xp);M.gm.setAttribute("opacity",tip?1:0);
+  const fecha = k===0 ? (D.fechas[M.i0]||"") : (D.fechas[M.i0+k-1]||"");
+  M.date.textContent = tip ? fecha : "";
+  if(tip){
+    const rows=M.series.map(s=>({name:s.name,color:s.color,v:s.cum[k]/100-1})).sort((a,b)=>b.v-a.v);
+    M.tip.innerHTML=`<div class="d">${esc(fecha)} · acumulado del período</div>`+
+      rows.map(r=>`<div class="rowt"><span><span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:${r.color};margin-right:5px"></span>${esc(r.name)}</span><b class="${cls(r.v)}">${r.v>0?"+":""}${pct(r.v,1)}</b></div>`).join("");
+    let L=xp/M.W*100; L=Math.max(13,Math.min(87,L));
+    M.tip.style.left=L+"%"; M.tip.style.top="6px"; M.tip.style.transform="translateX(-50%)";
+    M.tip.style.opacity="1";
+  } else { M.tip.style.opacity="0"; }
 }
 
 /* ---- posiciona guía + tooltip + lectura del día j (1..n) ---- */
