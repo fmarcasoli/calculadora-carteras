@@ -33,10 +33,10 @@ jobs:
 
       - name: Commitear si hubo cambios
         run: |
-          if [ -n "$(git status --porcelain constructor-carteras.html)" ]; then
+          if [ -n "$(git status --porcelain datos.js)" ]; then
             git config user.name "actualizar-bot"
             git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git add constructor-carteras.html
+            git add datos.js
             git commit -m "datos: $(date -u +%Y-%m-%d)"
             git push
           else

@@ -1,12 +1,13 @@
 # Constructor de carteras
 
-Herramienta de análisis cuantitativo de carteras (un solo HTML, sin dependencias).
-Los datos (precios de Yahoo Finance + disponibilidad de CEDEAR en BYMA) están
-congelados dentro del HTML y se refrescan con `actualizar.py`.
+Herramienta de análisis cuantitativo de carteras (HTML sin dependencias).
+Los datos (precios de Yahoo Finance + disponibilidad de CEDEAR en BYMA) viven en
+`datos.js` (el HTML los carga con `<script src>`) y se refrescan con `actualizar.py`.
 
 ## Uso local
 
 Abrí `constructor-carteras.html` en el navegador (doble clic). No necesita servidor.
+`datos.js` tiene que estar en la misma carpeta.
 
 Refrescar los datos a mano:
 
@@ -40,5 +41,6 @@ Puesta a punto (una sola vez):
   `cron:` para otra cadencia (ej. `0 12 * * 1` = lunes 09:00 ART, semanal).
 - Yahoo a veces limita IPs de datacenter (HTTP 429). El script reintenta; si una
   corrida falla, no commitea nada y la anterior sigue publicada.
-- Cada corrida reescribe el HTML (~2,5 MB), así que el repo crece con el tiempo.
-  Si molesta, se puede separar la data en un JSON aparte más adelante.
+- Cada corrida reescribe `datos.js` (~2,4 MB); el HTML (44 KB) queda fijo. El
+  repo igual crece con el histórico de `datos.js`. Si algún día molesta, se puede
+  servir la data desde Vercel Blob o regenerarla en el deploy para no versionarla.

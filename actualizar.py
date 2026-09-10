@@ -225,7 +225,9 @@ def main():
     ap = argparse.ArgumentParser(description="Actualiza los datos del constructor de carteras.")
     aqui = os.path.dirname(os.path.abspath(__file__))
     ap.add_argument("--html", default=os.path.join(aqui, "constructor-carteras.html"),
-                    help="ruta al archivo HTML a actualizar")
+                    help="ruta al HTML (solo para el mensaje final; ya no se reescribe)")
+    ap.add_argument("--datos", default=os.path.join(aqui, "datos.js"),
+                    help="ruta al archivo de datos a escribir (default datos.js)")
     ap.add_argument("--anios", type=int, default=5, help="años de historia a descargar (default 5)")
     ap.add_argument("--agregar", default="", help="tickers extra separados por coma, ej: TSLA,SHOP")
     ap.add_argument("--quitar", default="", help="tickers a excluir, separados por coma")
@@ -329,30 +331,26 @@ def main():
         "activos": activos,
     }
 
-    # ---- reemplazar el bloque de datos dentro del HTML ----
-    with open(args.html, encoding="utf-8") as f:
-        html = f.read()
-    patron = re.compile(
-        r'(<script id="DATA" type="application/json">)(.*?)(</script>)', re.S)
-    if not patron.search(html):
-        sys.exit("Ese HTML no tiene el bloque <script id=\"DATA\">. "
-                 "¿Es el constructor-carteras.html correcto?")
+    # ---- escribir la data en datos.js (se carga con <script src>) ----
+    #  Archivo separado del HTML: sirve igual online (Vercel) y localmente
+    #  (doble clic), sin el CORS que rompería un fetch de datos.json en file://.
+    nuevo_json = json.dumps(datos, separators=(",", ":"), ensure_ascii=False)
+    contenido = "window.__DATA__=" + nuevo_json + ";\n"
 
-    if not args.sin_backup:
-        bak = args.html.replace(".html", "") + "-backup.html"
+    if not args.sin_backup and os.path.exists(args.datos):
+        bak = args.datos + ".bak"
         with open(bak, "w", encoding="utf-8") as f:
-            f.write(html)
+            f.write(open(args.datos, encoding="utf-8").read())
         print(f"Copia de seguridad: {os.path.basename(bak)}")
 
-    nuevo_json = json.dumps(datos, separators=(",", ":"), ensure_ascii=False)
-    html = patron.sub(lambda m: m.group(1) + nuevo_json.replace("\\", "\\\\").replace("</", "<\\/") + m.group(3), html, count=1)
-    with open(args.html, "w", encoding="utf-8") as f:
-        f.write(html)
+    with open(args.datos, "w", encoding="utf-8") as f:
+        f.write(contenido)
 
     con_ced = sum(1 for t in datos["activos"] if datos["activos"][t]["ced"])
     print(f"\nListo. {len(datos['activos'])} activos · {len(datos['fechas'])} ruedas · "
           f"{datos['desde']} a {datos['hasta']}")
-    print(f"{con_ced} con CEDEAR en BYMA · {round(os.path.getsize(args.html)/1024)} KB")
+    print(f"{con_ced} con CEDEAR en BYMA · {os.path.basename(args.datos)} "
+          f"{round(os.path.getsize(args.datos)/1024)} KB")
     print(f"Abrí {os.path.basename(args.html)} en el navegador.")
 
 
