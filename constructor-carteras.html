@@ -287,8 +287,14 @@ input[type=text],input[type=number]{cursor:text}
           <button class="btn" id="bEqual">Equiponderar</button>
           <button class="btn" id="bClear">Limpiar</button>
         </div>
-        <label class="f" style="margin:14px 0 5px">Monto del cliente (USD)</label>
-        <input type="number" id="capital" value="0" min="0" step="1000" placeholder="0" inputmode="numeric">
+        <label class="f" style="margin:14px 0 5px">Monto del cliente</label>
+        <div style="display:flex;gap:7px;align-items:stretch">
+          <input type="number" id="capital" value="0" min="0" step="1000" placeholder="0" inputmode="numeric" style="flex:1">
+          <div class="seg" id="segCur" style="width:120px;flex:none">
+            <button data-cur="ARS" aria-pressed="true">ARS</button>
+            <button data-cur="USD" aria-pressed="false">US$</button>
+          </div>
+        </div>
       </div>
     </section>
 
@@ -527,7 +533,8 @@ let win = 504, rf = 0.037, bench = "SPY";
 let optW = null, optHH = null;
 let CHART = null;      // geometría del gráfico para hover/slider
 let MULTI = null;      // geometría del gráfico multi-línea por activo
-let capital = 0;       // monto del cliente en USD (para repartir por activo)
+let capital = 0;       // monto del cliente (para repartir por activo)
+let moneda = "ARS";    // ARS o USD (solo formato; el reparto es peso×monto)
 
 // activos tildados (incluidos en el cálculo); on===false = excluido pero en la lista
 const activeHolds = () => holds.filter(h => h.on !== false);
@@ -536,7 +543,7 @@ const activeHolds = () => holds.filter(h => h.on !== false);
 const fmt = (x,d=2)=> (x==null||!isFinite(x)) ? "—" : x.toLocaleString("es-AR",{minimumFractionDigits:d,maximumFractionDigits:d});
 const pct = (x,d=2)=> (x==null||!isFinite(x)) ? "—" : fmt(x*100,d)+"%";
 const cls = x => x>0 ? "pos" : (x<0 ? "neg":"");
-const fmtMoney = x => (x==null||!isFinite(x)) ? "—" : "US$ "+Math.round(x).toLocaleString("es-AR");
+const fmtMoney = x => (x==null||!isFinite(x)) ? "—" : (moneda==="USD"?"US$ ":"$ ")+Math.round(x).toLocaleString("es-AR");
 const esc = s => String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 
 function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
@@ -732,7 +739,7 @@ function render(){
 
   /* --- tabla activos --- */
   document.getElementById("tAssets").innerHTML=
-    `<thead><tr><th>Activo</th><th>Peso</th><th>Monto USD</th><th>Ret. an.</th><th>Vol. an.</th><th>Sharpe</th><th>Corr. cartera</th><th>Beta</th><th>Aporte riesgo</th><th>Riesgo/peso</th><th>BYMA</th></tr></thead><tbody>`+
+    `<thead><tr><th>Activo</th><th>Peso</th><th>Monto</th><th>Ret. an.</th><th>Vol. an.</th><th>Sharpe</th><th>Corr. cartera</th><th>Beta</th><th>Aporte riesgo</th><th>Riesgo/peso</th><th>BYMA</th></tr></thead><tbody>`+
     [...rows].sort((a,b)=>b.w-a.w).map(r=>`<tr>
       <td class="tk">${esc(r.h.custom?r.h.name:r.h.t)}</td>
       <td>${fmt(r.w*100,2)}%</td>
@@ -1071,6 +1078,8 @@ document.getElementById("segCed").onclick=e=>{const b=e.target.closest("button")
   onlyCed=b.dataset.c==="1"; [...e.currentTarget.children].forEach(c=>c.setAttribute("aria-pressed",c===b));showRes()};
 document.getElementById("rf").oninput=e=>{rf=(+e.target.value||0)/100;render()};
 document.getElementById("capital").oninput=e=>{capital=Math.max(0,+e.target.value||0);render()};
+document.getElementById("segCur").onclick=e=>{const b=e.target.closest("button");if(!b)return;
+  moneda=b.dataset.cur; [...e.currentTarget.children].forEach(c=>c.setAttribute("aria-pressed",c===b));render()};
 document.getElementById("bench").onchange=e=>{bench=e.target.value;render()};
 
 document.getElementById("bNorm").onclick=()=>{const act=activeHolds(),t=act.reduce((s,h)=>s+(+h.w||0),0);
