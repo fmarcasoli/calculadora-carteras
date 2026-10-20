@@ -141,6 +141,14 @@ svg{display:block;width:100%;height:auto;overflow:visible}
 .mli b{color:var(--ink);font-weight:600;font-variant-numeric:tabular-nums}
 .mdate{font-family:var(--mono);font-size:11px;color:var(--ink3);margin-top:8px;height:14px}
 
+/* ---------- distribución sector/industria ---------- */
+.distrow{display:flex;align-items:center;gap:9px;padding:4px 0}
+.distrow .dl{font-size:11.5px;flex:0 0 36%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.distrow .db{flex:1;height:12px;background:var(--rule2);border-radius:2px;overflow:hidden}
+.distrow .db i{display:block;height:100%;background:var(--weight)}
+.distrow .dp{font-family:var(--mono);font-size:11px;min-width:46px;text-align:right}
+.distrow .dm{font-family:var(--mono);font-size:10px;color:var(--ink3);min-width:70px;text-align:right}
+
 /* ---------- heatmap ---------- */
 .hmwrap{overflow-x:auto;display:flex;justify-content:center}
 .hm{border-collapse:collapse;font-family:var(--mono);font-size:10px;width:auto;margin:0 auto}
@@ -279,6 +287,8 @@ input[type=text],input[type=number]{cursor:text}
           <button class="btn" id="bEqual">Equiponderar</button>
           <button class="btn" id="bClear">Limpiar</button>
         </div>
+        <label class="f" style="margin:14px 0 5px">Monto del cliente (USD)</label>
+        <input type="number" id="capital" value="0" min="0" step="1000" placeholder="0" inputmode="numeric">
       </div>
     </section>
 
@@ -443,6 +453,16 @@ input[type=text],input[type=number]{cursor:text}
       </div>
     </section>
 
+    <section class="card">
+      <div class="hd"><h2>Distribución por sector e industria</h2><span class="note">ponderado por la cartera</span></div>
+      <div class="bd">
+        <div class="grid2" style="gap:24px;align-items:start">
+          <div><div class="eyebrow" style="margin-bottom:9px">Por sector</div><div id="distSec"></div></div>
+          <div><div class="eyebrow" style="margin-bottom:9px">Por industria</div><div id="distInd"></div></div>
+        </div>
+      </div>
+    </section>
+
   </div>
 </main>
 
@@ -507,6 +527,7 @@ let win = 504, rf = 0.037, bench = "SPY";
 let optW = null, optHH = null;
 let CHART = null;      // geometría del gráfico para hover/slider
 let MULTI = null;      // geometría del gráfico multi-línea por activo
+let capital = 0;       // monto del cliente en USD (para repartir por activo)
 
 // activos tildados (incluidos en el cálculo); on===false = excluido pero en la lista
 const activeHolds = () => holds.filter(h => h.on !== false);
@@ -515,6 +536,7 @@ const activeHolds = () => holds.filter(h => h.on !== false);
 const fmt = (x,d=2)=> (x==null||!isFinite(x)) ? "—" : x.toLocaleString("es-AR",{minimumFractionDigits:d,maximumFractionDigits:d});
 const pct = (x,d=2)=> (x==null||!isFinite(x)) ? "—" : fmt(x*100,d)+"%";
 const cls = x => x>0 ? "pos" : (x<0 ? "neg":"");
+const fmtMoney = x => (x==null||!isFinite(x)) ? "—" : "US$ "+Math.round(x).toLocaleString("es-AR");
 const esc = s => String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 
 function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
@@ -650,9 +672,17 @@ function render(){
   document.getElementById("hDD").className="v mono neg";
   document.getElementById("obsNote").textContent=`${n} ruedas · ${D.fechas[i0]} → ${D.fechas[ND-1]}`;
 
+  /* --- correlación media ponderada (entre activos, pesada por w_i·w_j) --- */
+  let wcn=0,wcd=0;
+  for(let a=0;a<HH.length;a++)for(let b=0;b<HH.length;b++){ if(a===b)continue;
+    const rho=C[a][b]/Math.max(Math.sqrt(C[a][a]*C[b][b]),1e-12);
+    wcn+=w[a]*w[b]*rho; wcd+=w[a]*w[b]; }
+  const wcorr = wcd>0 ? wcn/wcd : NaN;
+
   /* --- métricas --- */
   const M=[
     ["Retorno an.",pct(st.ret,2),cls(st.ret),""],
+    ["Correlación media",fmt(wcorr),"","ponderada, entre activos"],
     ["Volatilidad",pct(st.vol,2),"",""],
     ["Sharpe",fmt(st.sharpe),cls(st.sharpe),`libre riesgo ${fmt(rf*100,2)}%`],
     ["Sortino",fmt(st.sortino),cls(st.sortino),"solo vol negativa"],
@@ -702,10 +732,11 @@ function render(){
 
   /* --- tabla activos --- */
   document.getElementById("tAssets").innerHTML=
-    `<thead><tr><th>Activo</th><th>Peso</th><th>Ret. an.</th><th>Vol. an.</th><th>Sharpe</th><th>Corr. cartera</th><th>Beta</th><th>Aporte riesgo</th><th>Riesgo/peso</th><th>BYMA</th></tr></thead><tbody>`+
+    `<thead><tr><th>Activo</th><th>Peso</th><th>Monto USD</th><th>Ret. an.</th><th>Vol. an.</th><th>Sharpe</th><th>Corr. cartera</th><th>Beta</th><th>Aporte riesgo</th><th>Riesgo/peso</th><th>BYMA</th></tr></thead><tbody>`+
     [...rows].sort((a,b)=>b.w-a.w).map(r=>`<tr>
       <td class="tk">${esc(r.h.custom?r.h.name:r.h.t)}</td>
       <td>${fmt(r.w*100,2)}%</td>
+      <td>${capital>0?fmtMoney(r.w*capital):"—"}</td>
       <td class="${cls(r.mu)}">${pct(r.mu,2)}</td>
       <td>${pct(r.sd,2)}</td>
       <td class="${cls(r.sh)}">${fmt(r.sh)}</td>
@@ -718,6 +749,15 @@ function render(){
   /* --- charts --- */
   drawCharts(p,bser,i0,n);
   drawAssetCharts(HH,S,i0,n);
+
+  /* --- distribución por sector e industria (ponderada) --- */
+  const secMap={}, indMap={};
+  HH.forEach((h,i)=>{
+    const sk=h.custom?"Manual / otros":(A[h.t].sec||"Sin clasificar");
+    const ik=h.custom?"Manual / otros":(A[h.t].ind||"Sin clasificar");
+    secMap[sk]=(secMap[sk]||0)+w[i]; indMap[ik]=(indMap[ik]||0)+w[i];
+  });
+  renderDist("distSec",secMap); renderDist("distInd",indMap);
 
   /* --- drop-one --- */
   const drop=HH.length<2?[]:HH.map((h,j)=>{
@@ -838,6 +878,20 @@ function drawCharts(p,b,i0,n){
   });
   CHART.scrub.addEventListener("input",e=>showChartAt(+e.target.value,true));
   showChartAt(n,false);
+}
+
+/* ---- barras de distribución (sector / industria) ---- */
+function renderDist(id,map){
+  const el=document.getElementById(id);
+  const entries=Object.entries(map).sort((a,b)=>b[1]-a[1]);
+  if(!entries.length){el.innerHTML=`<p style="color:var(--ink3);font-size:12px;margin:0">—</p>`;return;}
+  const mx=Math.max(...entries.map(e=>e[1]),1e-9);
+  el.innerHTML=entries.map(([k,v])=>`<div class="distrow">
+    <span class="dl" title="${esc(k)}">${esc(k)}</span>
+    <span class="db"><i style="width:${(v/mx*100).toFixed(1)}%"></i></span>
+    <span class="dp">${pct(v,1)}</span>
+    ${capital>0?`<span class="dm">${fmtMoney(v*capital)}</span>`:""}
+  </div>`).join("");
 }
 
 /* ---- multi-línea: todos los activos base-100 superpuestos, colores distintos ---- */
@@ -1016,6 +1070,7 @@ document.getElementById("segWin").onclick=e=>{const b=e.target.closest("button")
 document.getElementById("segCed").onclick=e=>{const b=e.target.closest("button");if(!b)return;
   onlyCed=b.dataset.c==="1"; [...e.currentTarget.children].forEach(c=>c.setAttribute("aria-pressed",c===b));showRes()};
 document.getElementById("rf").oninput=e=>{rf=(+e.target.value||0)/100;render()};
+document.getElementById("capital").oninput=e=>{capital=Math.max(0,+e.target.value||0);render()};
 document.getElementById("bench").onchange=e=>{bench=e.target.value;render()};
 
 document.getElementById("bNorm").onclick=()=>{const act=activeHolds(),t=act.reduce((s,h)=>s+(+h.w||0),0);

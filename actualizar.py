@@ -104,6 +104,45 @@ def http_json(url, timeout=25):
         return json.loads(r.read().decode("utf-8", "replace"))
 
 
+def sesion_yahoo():
+    """Opener con cookie + crumb, necesario para quoteSummary (sector/industria)."""
+    import http.cookiejar
+    cj = http.cookiejar.CookieJar()
+    op = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(cj),
+                                     urllib.request.HTTPSHandler(context=CTX))
+    op.addheaders = [("User-Agent", UA)]
+    try:
+        op.open("https://fc.yahoo.com", timeout=20)
+    except Exception:
+        pass
+    try:
+        crumb = op.open("https://query1.finance.yahoo.com/v1/test/getcrumb",
+                        timeout=20).read().decode()
+        return op, crumb
+    except Exception as e:
+        print(f"  aviso: no pude obtener crumb de Yahoo ({e}); sin sector/industria.")
+        return op, None
+
+
+def bajar_perfil(op, crumb, ticker):
+    """(sector, industria) del ticker. ETFs usan su categoría de fondo. ('', '') si falla."""
+    if not crumb:
+        return "", ""
+    url = ("https://query1.finance.yahoo.com/v10/finance/quoteSummary/"
+           + urllib.parse.quote(ticker)
+           + "?modules=assetProfile,fundProfile&crumb=" + urllib.parse.quote(crumb))
+    try:
+        r = json.loads(op.open(url, timeout=20).read())["quoteSummary"]["result"][0]
+        ap = r.get("assetProfile", {}) or {}
+        fp = r.get("fundProfile", {}) or {}
+        cat = fp.get("categoryName")
+        sec = ap.get("sector") or cat or ""
+        ind = ap.get("industry") or cat or ""
+        return sec, ind
+    except Exception:
+        return "", ""
+
+
 def bajar_precios(ticker, anios, intentos=3):
     """Devuelve {fecha_iso: precio_ajustado} o None."""
     url = ("https://query1.finance.yahoo.com/v8/finance/chart/"
@@ -288,11 +327,14 @@ def main():
         print(f"  sumados {len(desc)} CEDEARs nuevos al universo.")
 
     print(f"Descargando {len(universo)} activos, {args.anios} años de historia…")
-    precios, fallidos = {}, []
+    yop, crumb = sesion_yahoo()
+    precios, perfiles, fallidos = {}, {}, []
     for i, t in enumerate(universo, 1):
-        p = bajar_precios(dl.get(t, t), args.anios)
+        yt = dl.get(t, t)
+        p = bajar_precios(yt, args.anios)
         if p and len(p) > 200:
             precios[t] = p
+            perfiles[t] = bajar_perfil(yop, crumb, yt)   # (sector, industria)
         else:
             fallidos.append(t)
         if i % 20 == 0 or i == len(universo):
@@ -339,8 +381,9 @@ def main():
         off = d0                                # primer índice de retorno usable (r[k]=log(v[k+1]/v[k]))
         r = [int(round(math.log(v[k + 1] / v[k]) * 1e5)) for k in range(off, ND)]
         nombre, cat = universo[t]
+        sec, ind = perfiles.get(t, ("", ""))
         activos[t] = {"n": nombre, "c": cat, "ced": bool(tiene_cedear(t)),
-                      "off": off, "r": r}
+                      "sec": sec, "ind": ind, "off": off, "r": r}
     if cortos:
         print(f"  historia muy corta (<{MIN_RET} ruedas, se omiten {len(cortos)}): "
               + ", ".join(cortos[:30]) + (" …" if len(cortos) > 30 else ""))
